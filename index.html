@@ -1,0 +1,247 @@
+# -*- coding: utf-8 -*-
+"""
+MBTI 性格测试（命令行答题 + 自动生成 H5 结果页）
+对接聚合数据「性格测试」接口：
+  1. 获取性格测试题目  https://apis.juhe.cn/fapig/character_test/questions
+  2. 提交答案获取结果  https://apis.juhe.cn/fapig/character_test/analysis
+
+用法：
+  python mbti_test.py
+
+执行完成后，会在当前目录生成 H5 结果页面：mbti_result.html
+用浏览器打开即可查看，也可部署到 GitHub Pages 转发给他人。
+"""
+
+import json
+import requests
+
+# 基本参数配置
+QUESTION_API = 'https://apis.juhe.cn/fapig/character_test/questions'  # 获取题目接口
+ANALYSIS_API = 'https://apis.juhe.cn/fapig/character_test/analysis'   # 提交答案接口
+API_KEY = '9a02fa8c2ab3473e7817adbfd1b60427'  # 在个人中心->我的数据,接口名称上方查看
+OUTPUT_HTML = 'mbti_result.html'  # 生成的 H5 结果页文件名
+
+
+def get_questions(api_key, level=''):
+    """获取性格测试题目。level='' 返回4道题；level='senior' 返回12道题。"""
+    request_params = {
+        'key': api_key,
+        'level': level,
+    }
+    response = requests.get(QUESTION_API, params=request_params)
+
+    if response.status_code == 200:
+        result = response.json()
+        if result.get('error_code') == 0:
+            return result['result']
+        raise RuntimeError('获取题目失败：错误码 {}，{}'.format(
+            result.get('error_code'), result.get('reason')))
+    raise RuntimeError('请求异常，HTTP 状态码：{}'.format(response.status_code))
+
+
+def get_analysis(api_key, answers):
+    """提交答案，获取性格测试结果。answers 为 ia/ib 值列表。"""
+    request_params = {
+        'key': api_key,
+        'answers': ','.join(answers),  # 半角逗号分隔
+    }
+    response = requests.get(ANALYSIS_API, params=request_params)
+
+    if response.status_code == 200:
+        result = response.json()
+        if result.get('error_code') == 0:
+            return result['result']
+        raise RuntimeError('提交失败：错误码 {}，{}'.format(
+            result.get('error_code'), result.get('reason')))
+    raise RuntimeError('请求异常，HTTP 状态码：{}'.format(response.status_code))
+
+
+def print_result(r):
+    """在终端简要输出测试结果。"""
+    print('\n' + '=' * 50)
+    print('        你的性格类型：{}（{}）'.format(r.get('alphabet', ''), r.get('occupation', '')))
+    print('        英文人格：{}'.format(r.get('vocabulary', '')))
+    print('=' * 50)
+
+
+HTML_TEMPLATE = r"""
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>我的 MBTI 性格测试结果</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    color: #eee;
+  }
+  .container { max-width: 480px; margin: 0 auto; padding: 32px 20px 60px; }
+  .hero { text-align: center; padding: 40px 0 30px; animation: fadeDown 0.6s ease; }
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  .hero-label { font-size: 13px; color: #8b9dc3; letter-spacing: 4px; margin-bottom: 16px; }
+  .type-badge {
+    display: inline-block;
+    font-size: 52px; font-weight: 800; letter-spacing: 8px;
+    background: linear-gradient(135deg, #e94560, #ff6b6b);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 8px;
+  }
+  .type-name { font-size: 24px; font-weight: 700; color: #fff; }
+  .type-en { font-size: 14px; color: #8b9dc3; margin-top: 6px; }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .card:nth-of-type(1) { animation-delay: 0.1s; }
+  .card:nth-of-type(2) { animation-delay: 0.2s; }
+  .card:nth-of-type(3) { animation-delay: 0.3s; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .card-title {
+    font-size: 15px; font-weight: 700; color: #e94560;
+    margin-bottom: 12px; padding-left: 10px;
+    border-left: 3px solid #e94560;
+  }
+  .card-text { font-size: 14px; line-height: 2.0; color: #cfd8e3; text-align: justify; margin-bottom: 10px; }
+  .card-text:last-child { margin-bottom: 0; }
+  .footer { text-align: center; margin-top: 30px; }
+  .btn {
+    display: block; width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #e94560, #c73650);
+    color: #fff; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    margin-bottom: 12px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .footer-note { font-size: 12px; color: #667; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="hero">
+    <div class="hero-label">MBTI PERSONALITY TEST</div>
+    <div class="type-badge" id="alphabet"></div>
+    <div class="type-name" id="occupation"></div>
+    <div class="type-en" id="vocabulary"></div>
+  </div>
+  <div id="content"></div>
+  <div class="footer">
+    <button class="btn" onclick="share()">📤 分享我的测试结果</button>
+    <div class="footer-note">测试结果由聚合数据性格测试 API 生成</div>
+  </div>
+</div>
+
+<script>
+var DATA = __DATA__;
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+(function render() {
+  document.getElementById('alphabet').textContent = DATA.alphabet || '';
+  document.getElementById('occupation').textContent = DATA.occupation || '';
+  document.getElementById('vocabulary').textContent = DATA.vocabulary || '';
+
+  var html = '';
+  var sections = [
+    { title: '性格概述', items: DATA.summarize },
+    { title: '性格描述', items: DATA.desc }
+  ];
+  (DATA.characteristic || []).forEach(function(c) {
+    sections.push({ title: c.title, items: c.desc });
+  });
+
+  sections.forEach(function(sec) {
+    if (!sec.items || !sec.items.length) return;
+    html += '<div class="card"><div class="card-title">' + esc(sec.title) + '</div>';
+    sec.items.forEach(function(t) { html += '<p class="card-text">' + esc(t) + '</p>'; });
+    html += '</div>';
+  });
+  document.getElementById('content').innerHTML = html;
+})();
+
+function share() {
+  if (navigator.share) {
+    navigator.share({ title: '我的 MBTI 性格测试结果', text: '快来看看我的性格类型！', url: location.href }).catch(function(){});
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = location.href;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('链接已复制，快转发给朋友吧！');
+  }
+}
+</script>
+</body>
+</html>"""
+
+
+def build_html(r):
+    """根据测试结果生成 H5 页面。"""
+    data_json = json.dumps(r, ensure_ascii=False)
+    return HTML_TEMPLATE.replace('__DATA__', data_json)
+
+
+def main():
+    print('=' * 50)
+    print('         MBTI 性格测试（命令行版）')
+    print('=' * 50)
+
+    level = input('\n选择题目数量（回车=4道标准版，输入 senior=12道完整版）：').strip()
+
+    # 1. 获取题目
+    print('\n正在获取题目...')
+    try:
+        questions = get_questions(API_KEY, level)
+    except Exception as e:
+        print(e)
+        return
+    print('共 {} 道题，请凭直觉作答。\n'.format(len(questions)))
+
+    # 2. 逐题作答（选择A时填ia的值，选择B时填ib的值）
+    answers = []
+    for i, q in enumerate(questions, 1):
+        print('-' * 50)
+        print('第 {}/{} 题：{}'.format(i, len(questions), q['q']))
+        print('  A. {}'.format(q['a']))
+        print('  B. {}'.format(q['b']))
+        while True:
+            choice = input('请选择（A/B）：').strip().upper()
+            if choice == 'A':
+                answers.append(q['ia'])
+                break
+            elif choice == 'B':
+                answers.append(q['ib'])
+                break
+            print('输入无效，请输入 A 或 B。')
+
+    # 3. 提交答案，获取结果
+    print('\n正在分析你的性格...')
+    try:
+        result = get_analysis(API_KEY, answers)
+    except Exception as e:
+        print(e)
+        return
+    print_result(result)
+
+    # 4. 生成 H5 结果页面
+    html = build_html(result)
+    with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
+        f.write(html)
+    print('✅ H5 结果页面已生成：{}'.format(OUTPUT_HTML))
+    print('   用浏览器打开即可查看，部署到 GitHub Pages 后可转发给他人。')
+
+
+if __name__ == '__main__':
+    main()
