@@ -239,8 +239,17 @@ def main():
     html = build_html(result)
     with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
         f.write(html)
-    print('✅ H5 结果页面已生成：{}'.format(OUTPUT_HTML))
+    import os
+    print('✅ H5 结果页面已生成：{}'.format(os.path.abspath(OUTPUT_HTML)))
     print('   用浏览器打开即可查看，部署到 GitHub Pages 后可转发给他人。')
+    print()
+    print('#' * 60)
+    print('# 以下为 index.html 完整内容，请全部复制（从 <!DOCTYPE 到 </html>） #')
+    print('#' * 60)
+    print(html)
+    print('#' * 60)
+    print('# 复制结束 #')
+    print('#' * 60)
 
 
 if __name__ == '__main__':
